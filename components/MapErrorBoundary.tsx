@@ -1,7 +1,6 @@
 import { Component, type ReactNode } from 'react';
 import { Button, StyleSheet, Text, View } from 'react-native';
 
-// try/catch не ловит ошибки отрисовки React, поэтому карту оборачиваем в Error Boundary.
 export default class MapErrorBoundary extends Component<
   { children: ReactNode },
   { hasError: boolean }
