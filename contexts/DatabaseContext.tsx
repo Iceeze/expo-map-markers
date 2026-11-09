@@ -21,7 +21,6 @@ interface DatabaseContextValue {
 const DatabaseContext = createContext<DatabaseContextValue | null>(null);
 let queue = Promise.resolve();
 
-// Очередь отделяет запросы от чужих транзакций и даёт завершить работу перед закрытием базы.
 function enqueue<T>(operation: () => Promise<T>): Promise<T> {
   const result = queue.then(operation);
   queue = result.then(() => undefined, () => undefined);
