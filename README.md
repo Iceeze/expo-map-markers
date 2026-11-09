@@ -29,15 +29,17 @@
 | `components/MapErrorBoundary.tsx` | Показывает запасной экран при ошибке отрисовки карты в React. |
 | `components/ImageList.tsx` | Показывает список фотографий и кнопки удаления. |
 | `contexts/DatabaseContext.tsx` | Управляет соединением SQLite, очередью операций, списком маркеров, состояниями загрузки и ошибок. |
-| `database/schema.ts`, `database/migrations/` | Настраивают SQLite и последовательно применяют миграции. |
-| `database/operations.ts` | Содержит запросы к базе и связывает записи с файлами фотографий. |
+| `database/schema.ts`, `database/migrations/` | Описывают таблицы для Drizzle, настраивают SQLite и применяют миграции. |
+| `database/operations.ts` | Выполняет запросы через Drizzle ORM и связывает записи с файлами фотографий. |
 | `database/photos.ts` | Копирует выбранные фотографии в папку приложения, восстанавливает их URI и удаляет локальные копии. |
-| `types.ts` | Описывает форму координат, маркера, фотографии и параметров перехода. |
+| `types.ts` | Описывает координаты, маркеры и фотографии. |
 | `app.json` | Настройки Expo: название приложения, платформы и подключённые плагины. |
 | `package.json` | Зависимости и команды запуска проекта. |
 | `tsconfig.json` | Настройки проверки TypeScript. |
 
-Оба экрана получают данные и операции через `useDatabase()`. Провайдер загружает список маркеров при запуске и обновляет его после успешной записи. Экран деталей запрашивает фотографии только выбранного маркера. Доступ к SQLite идёт через `expo-sqlite`, который поставляется со своими типами TypeScript.
+Оба экрана получают данные и операции через `useDatabase()`. Провайдер загружает список маркеров при запуске и обновляет его после успешной записи. Экран деталей запрашивает фотографии только выбранного маркера.
+
+Drizzle ORM подключается к открытому соединению `expo-sqlite` и использует описания таблиц из `database/schema.ts` для типизации запросов. Через Drizzle приложение читает, добавляет и удаляет маркеры и фотографии.
 
 Для карты используется `react-native-maps`, для галереи — `expo-image-picker`, для переходов между файлами экранов — `expo-router`.
 
@@ -45,10 +47,22 @@
 
 SQLite хранит данные в `markers.db`.
 
-| Таблица | Поля |
-| --- | --- |
-| `markers` | `id`, `latitude`, `longitude`, `created_at` |
-| `marker_images` | `id`, `marker_id`, `uri`, `created_at` |
+```sql
+CREATE TABLE markers (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    latitude REAL NOT NULL,
+    longitude REAL NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE marker_images (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    marker_id INTEGER NOT NULL,
+    uri TEXT NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (marker_id) REFERENCES markers (id) ON DELETE CASCADE
+);
+```
 
 Одному маркеру соответствует несколько фотографий. Внешний ключ `marker_images.marker_id` ссылается на `markers.id`. При открытии соединения включается `PRAGMA foreign_keys = ON`, поэтому `ON DELETE CASCADE` удаляет связанные записи вместе с маркером.
 

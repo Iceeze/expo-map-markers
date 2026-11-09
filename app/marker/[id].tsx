@@ -9,12 +9,12 @@ import { useDatabase } from '../../contexts/DatabaseContext';
 import type { MapMarker, MarkerImage } from '../../types';
 
 export default function MarkerScreen() {
-  const params = useLocalSearchParams();
+  const { id } = useLocalSearchParams();
   const router = useRouter();
   const navigation = useNavigation();
   const { markers, isReady } = useDatabase();
 
-  const marker = markers.find((item) => String(item.id) === params.id);
+  const marker = markers.find((item) => String(item.id) === id);
 
   function goBack() {
     if (!navigation.isFocused()) return;
@@ -69,20 +69,17 @@ function MarkerDetails({ marker, onBack }: { marker: MapMarker; onBack: () => vo
     if (busy) return;
     setIsPicking(true);
     try {
-      let uri: string | undefined;
-      try {
-        const result = await ImagePicker.launchImageLibraryAsync({
-          mediaTypes: ['images'],
-          allowsEditing: false,
-          quality: 1,
-        });
-        if (result.canceled) return;
-        uri = result.assets[0]?.uri;
-      } catch {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        allowsEditing: false,
+        quality: 1,
+      }).catch(() => {
         Alert.alert('Ошибка выбора изображения', 'Не удалось открыть галерею. Проверьте разрешения приложения.');
-        return;
-      }
+        return null;
+      });
+      if (!result || result.canceled) return;
 
+      const uri = result.assets[0]?.uri;
       if (!uri) {
         Alert.alert('Ошибка изображения', 'Не удалось получить фотографию. Выберите другую.');
         return;

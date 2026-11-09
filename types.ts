@@ -12,7 +12,3 @@ export interface MapMarker {
   id: number;
   coordinate: Coordinates;
 }
-
-export interface MarkerRouteParams {
-  id: string;
-}

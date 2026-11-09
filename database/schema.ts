@@ -1,6 +1,30 @@
+import { sql } from 'drizzle-orm';
+import { customType, index, integer, real, sqliteTable, text } from 'drizzle-orm/sqlite-core';
 import type { SQLiteDatabase } from 'expo-sqlite';
 import { initialSchema } from './migrations/001-initial';
 import { imageIndex } from './migrations/002-image-index';
+
+const datetime = customType<{ data: string }>({ dataType: () => 'DATETIME' });
+
+export const markers = sqliteTable('markers', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  latitude: real('latitude').notNull(),
+  longitude: real('longitude').notNull(),
+  createdAt: datetime('created_at').default(sql`CURRENT_TIMESTAMP`),
+});
+
+export const markerImages = sqliteTable(
+  'marker_images',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    markerId: integer('marker_id')
+      .notNull()
+      .references(() => markers.id, { onDelete: 'cascade' }),
+    uri: text('uri').notNull(),
+    createdAt: datetime('created_at').default(sql`CURRENT_TIMESTAMP`),
+  },
+  (table) => [index('idx_marker_images_marker_id').on(table.markerId)],
+);
 
 const migrations = [initialSchema, imageIndex];
 

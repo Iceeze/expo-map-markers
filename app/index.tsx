@@ -4,7 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import DatabaseStatus from '../components/DatabaseStatus';
 import Map from '../components/Map';
 import { useDatabase } from '../contexts/DatabaseContext';
-import type { Coordinates, MarkerRouteParams } from '../types';
+import type { Coordinates } from '../types';
 
 export default function MapScreen() {
   const router = useRouter();
@@ -25,8 +25,7 @@ export default function MapScreen() {
         Alert.alert('Маркер не найден', 'Вернитесь к карте и выберите другой маркер.');
         return;
       }
-      const params: MarkerRouteParams = { id: String(id) };
-      router.push({ pathname: '/marker/[id]', params: { ...params } });
+      router.push({ pathname: '/marker/[id]', params: { id: String(id) } });
     } catch {
       Alert.alert('Ошибка навигации', 'Не удалось открыть маркер. Попробуйте ещё раз.');
     }

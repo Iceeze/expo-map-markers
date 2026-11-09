@@ -1,60 +1,74 @@
-import type { SQLiteDatabase } from 'expo-sqlite';
-import type { MapMarker, MarkerImage } from '../types';
+import { eq } from 'drizzle-orm';
+import type { ExpoSQLiteDatabase } from 'drizzle-orm/expo-sqlite';
 import { copyPhoto, photoUriForDisplay, removePhoto, removeUnusedPhotos } from './photos';
+import { markerImages, markers } from './schema';
 
-interface MarkerRow {
-  id: number;
-  latitude: number;
-  longitude: number;
-}
+export function getMarkers(db: ExpoSQLiteDatabase) {
+  const rows = db
+    .select({ id: markers.id, latitude: markers.latitude, longitude: markers.longitude })
+    .from(markers)
+    .orderBy(markers.id)
+    .all();
 
-export async function getMarkers(db: SQLiteDatabase): Promise<MapMarker[]> {
-  const rows = await db.getAllAsync<MarkerRow>('SELECT id, latitude, longitude FROM markers ORDER BY id');
   return rows.map(({ id, latitude, longitude }) => ({ id, coordinate: { latitude, longitude } }));
 }
 
-export async function addMarker(db: SQLiteDatabase, latitude: number, longitude: number) {
-  const result = await db.runAsync('INSERT INTO markers (latitude, longitude) VALUES (?, ?)', latitude, longitude);
-  return result.lastInsertRowId;
+export function addMarker(db: ExpoSQLiteDatabase, latitude: number, longitude: number) {
+  const { lastInsertRowId } = db.insert(markers).values({ latitude, longitude }).run();
+  return lastInsertRowId;
 }
 
-export async function deleteMarker(db: SQLiteDatabase, id: number) {
-  let images: { uri: string }[] = [];
-  await db.withTransactionAsync(async () => {
-    images = await db.getAllAsync<{ uri: string }>('SELECT uri FROM marker_images WHERE marker_id = ?', id);
-    await db.runAsync('DELETE FROM markers WHERE id = ?', id);
+export function deleteMarker(db: ExpoSQLiteDatabase, id: number) {
+  const images = db.transaction((tx) => {
+    const rows = tx
+      .select({ uri: markerImages.uri })
+      .from(markerImages)
+      .where(eq(markerImages.markerId, id))
+      .all();
+
+    tx.delete(markers).where(eq(markers.id, id)).run();
+    return rows;
   });
+
   for (const { uri } of images) removePhoto(uri);
 }
 
-export async function getMarkerImages(db: SQLiteDatabase, markerId: number): Promise<MarkerImage[]> {
-  const rows = await db.getAllAsync<MarkerImage>(
-    'SELECT id, uri FROM marker_images WHERE marker_id = ? ORDER BY id',
-    markerId,
-  );
+export function getMarkerImages(db: ExpoSQLiteDatabase, markerId: number) {
+  const rows = db
+    .select({ id: markerImages.id, uri: markerImages.uri })
+    .from(markerImages)
+    .where(eq(markerImages.markerId, markerId))
+    .orderBy(markerImages.id)
+    .all();
+
   return rows.map(({ id, uri }) => ({ id, uri: photoUriForDisplay(uri) }));
 }
 
-export async function addImage(db: SQLiteDatabase, markerId: number, sourceUri: string): Promise<MarkerImage> {
+export async function addImage(db: ExpoSQLiteDatabase, markerId: number, sourceUri: string) {
   const uri = await copyPhoto(sourceUri);
   try {
     const displayUri = photoUriForDisplay(uri);
-    const result = await db.runAsync('INSERT INTO marker_images (marker_id, uri) VALUES (?, ?)', markerId, uri);
-    return { id: result.lastInsertRowId, uri: displayUri };
+    const { lastInsertRowId } = db.insert(markerImages).values({ markerId, uri }).run();
+    return { id: lastInsertRowId, uri: displayUri };
   } catch (error) {
     removePhoto(uri);
     throw error;
   }
 }
 
-export async function deleteImage(db: SQLiteDatabase, id: number) {
-  const [image] = await db.getAllAsync<{ uri: string }>('DELETE FROM marker_images WHERE id = ? RETURNING uri', id);
+export function deleteImage(db: ExpoSQLiteDatabase, id: number) {
+  const [image] = db
+    .delete(markerImages)
+    .where(eq(markerImages.id, id))
+    .returning({ uri: markerImages.uri })
+    .all();
+
   if (image) removePhoto(image.uri);
 }
 
-export async function cleanPhotoStorage(db: SQLiteDatabase) {
+export function cleanPhotoStorage(db: ExpoSQLiteDatabase) {
   try {
-    const rows = await db.getAllAsync<{ uri: string }>('SELECT uri FROM marker_images');
+    const rows = db.select({ uri: markerImages.uri }).from(markerImages).all();
     removeUnusedPhotos(new Set(rows.map(({ uri }) => uri)));
   } catch (error) {
     if (__DEV__) console.warn('[Фото] Не удалось очистить локальные копии', error);
