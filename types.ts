@@ -1,5 +1,5 @@
 export interface MarkerImage {
-  id: string;
+  id: number;
   uri: string;
 }
 
@@ -9,9 +9,8 @@ export interface Coordinates {
 }
 
 export interface MapMarker {
-  id: string;
+  id: number;
   coordinate: Coordinates;
-  images: MarkerImage[];
 }
 
 export interface MarkerRouteParams {

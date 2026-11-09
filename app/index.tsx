@@ -1,36 +1,47 @@
 import { useRouter } from 'expo-router';
 import { Alert, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import DatabaseStatus from '../components/DatabaseStatus';
 import Map from '../components/Map';
-import { useMarkers } from '../context/MarkersContext';
-import type { MarkerRouteParams } from '../types';
+import { useDatabase } from '../contexts/DatabaseContext';
+import type { Coordinates, MarkerRouteParams } from '../types';
 
 export default function MapScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { markers, addMarker } = useMarkers();
+  const { markers, addMarker, isReady, isLoading } = useDatabase();
 
-  function openMarker(id: string) {
+  async function saveMarker({ latitude, longitude }: Coordinates) {
+    try {
+      await addMarker(latitude, longitude);
+    } catch (error) {
+      Alert.alert('Ошибка сохранения', error instanceof Error ? error.message : 'Попробуйте ещё раз.');
+    }
+  }
+
+  function openMarker(id: number) {
     try {
       if (!markers.some((marker) => marker.id === id)) {
         Alert.alert('Маркер не найден', 'Вернитесь к карте и выберите другой маркер.');
         return;
       }
-      const params: MarkerRouteParams = { id };
+      const params: MarkerRouteParams = { id: String(id) };
       router.push({ pathname: '/marker/[id]', params: { ...params } });
     } catch {
       Alert.alert('Ошибка навигации', 'Не удалось открыть маркер. Попробуйте ещё раз.');
     }
   }
 
+  if (!isReady) return <DatabaseStatus />;
+
   return (
     <View style={styles.screen}>
-      <Map markers={markers} onAddMarker={addMarker} onOpenMarker={openMarker} />
+      <Map markers={markers} onAddMarker={saveMarker} onOpenMarker={openMarker} />
       <View pointerEvents="none" style={[styles.hint, { top: insets.top + 12 }]}>
         <Text style={styles.title}>Карта и изображения</Text>
         <Text style={styles.text}>Удерживайте палец на карте, чтобы добавить маркер.</Text>
         <Text style={styles.text}>Нажмите на маркер, чтобы добавить фотографии.</Text>
-        <Text style={styles.count}>Маркеров: {markers.length}</Text>
+        <Text style={styles.count}>{isLoading ? 'Работа с базой данных…' : `Маркеров: ${markers.length}`}</Text>
       </View>
     </View>
   );

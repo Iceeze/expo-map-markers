@@ -4,10 +4,11 @@ import type { MarkerImage } from '../types';
 
 interface ImageListProps {
   images: MarkerImage[];
-  onRemove: (id: string) => void;
+  onRemove: (id: number) => void;
+  disabled: boolean;
 }
 
-function ImageItem({ image, onRemove }: { image: MarkerImage; onRemove: () => void }) {
+function ImageItem({ image, onRemove, disabled }: { image: MarkerImage; onRemove: () => void; disabled: boolean }) {
   const [failed, setFailed] = useState(false);
 
   return (
@@ -25,21 +26,21 @@ function ImageItem({ image, onRemove }: { image: MarkerImage; onRemove: () => vo
           onError={() => setFailed(true)}
         />
       )}
-      <Button title="Удалить изображение" color="#dc2626" onPress={onRemove} />
+      <Button title="Удалить изображение" color="#dc2626" onPress={onRemove} disabled={disabled} />
     </View>
   );
 }
 
-export default function ImageList({ images, onRemove }: ImageListProps) {
+export default function ImageList({ images, onRemove, disabled }: ImageListProps) {
   return (
     <FlatList
       data={images}
-      keyExtractor={(image) => image.id}
+      keyExtractor={(image) => String(image.id)}
       contentContainerStyle={styles.list}
       ListEmptyComponent={
         <Text style={styles.empty}>Изображений пока нет. Выберите фотографию из галереи.</Text>
       }
-      renderItem={({ item }) => <ImageItem image={item} onRemove={() => onRemove(item.id)} />}
+      renderItem={({ item }) => <ImageItem image={item} onRemove={() => onRemove(item.id)} disabled={disabled} />}
     />
   );
 }

@@ -8,7 +8,7 @@ import type { Coordinates, MapMarker } from '../types';
 interface MapProps {
   markers: MapMarker[];
   onAddMarker: (coordinate: Coordinates) => void;
-  onOpenMarker: (id: string) => void;
+  onOpenMarker: (id: number) => void;
 }
 
 function MapContent({ markers, onAddMarker, onOpenMarker }: MapProps) {

@@ -1,21 +1,23 @@
-import { useState } from 'react';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useCallback, useState } from 'react';
+import { useFocusEffect, useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import { ActivityIndicator, Alert, Button, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import DatabaseStatus from '../../components/DatabaseStatus';
 import ImageList from '../../components/ImageList';
-import { useMarkers } from '../../context/MarkersContext';
+import { useDatabase } from '../../contexts/DatabaseContext';
+import type { MapMarker, MarkerImage } from '../../types';
 
 export default function MarkerScreen() {
   const params = useLocalSearchParams();
   const router = useRouter();
-  const { markers, addImage, removeImage } = useMarkers();
-  const [isPicking, setIsPicking] = useState(false);
+  const navigation = useNavigation();
+  const { markers, isReady } = useDatabase();
 
-  const id = typeof params.id === 'string' ? params.id : undefined;
-  const marker = markers.find((item) => item.id === id);
+  const marker = markers.find((item) => String(item.id) === params.id);
 
   function goBack() {
+    if (!navigation.isFocused()) return;
     try {
       if (router.canGoBack()) router.back();
       else router.replace('/');
@@ -24,40 +26,100 @@ export default function MarkerScreen() {
     }
   }
 
-  async function pickImage() {
-    if (!marker || isPicking) return;
-    setIsPicking(true);
-    try {
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ['images'],
-        allowsEditing: false,
-        quality: 1,
-      });
-      if (result.canceled) return;
-      const image = result.assets[0];
-      if (!image?.uri) {
-        Alert.alert('Ошибка изображения', 'Не удалось получить фотографию. Выберите другую.');
-        return;
-      }
-      addImage(marker.id, image.uri);
-    } catch {
-      Alert.alert(
-        'Ошибка выбора изображения',
-        'Не удалось открыть галерею или получить фотографию. Проверьте разрешения Expo Go в настройках телефона и попробуйте ещё раз.',
-      );
-    } finally {
-      setIsPicking(false);
-    }
-  }
+  if (!isReady) return <DatabaseStatus />;
 
   if (!marker) {
     return (
       <SafeAreaView edges={['bottom']} style={styles.missing}>
         <Text style={styles.title}>Маркер не найден</Text>
-        <Text style={styles.text}>Возможно, ссылка неверна или приложение было перезапущено.</Text>
+        <Text style={styles.text}>Маркер был удалён или ссылка неверна.</Text>
         <Button title="Вернуться к карте" onPress={goBack} />
       </SafeAreaView>
     );
+  }
+
+  return <MarkerDetails key={marker.id} marker={marker} onBack={goBack} />;
+}
+
+function MarkerDetails({ marker, onBack }: { marker: MapMarker; onBack: () => void }) {
+  const { addImage, deleteImage, deleteMarker, getMarkerImages, isLoading } = useDatabase();
+  const [images, setImages] = useState<MarkerImage[] | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [loadAttempt, setLoadAttempt] = useState(0);
+  const [isPicking, setIsPicking] = useState(false);
+  const busy = isPicking || isLoading;
+
+  useFocusEffect(useCallback(() => {
+    let active = true;
+    setLoadError(null);
+    void getMarkerImages(marker.id).then(
+      (savedImages) => {
+        if (active) setImages(savedImages);
+      },
+      (error: Error) => {
+        if (active) setLoadError(error.message);
+      },
+    );
+    return () => {
+      active = false;
+    };
+  }, [getMarkerImages, loadAttempt, marker.id]));
+
+  async function pickImage() {
+    if (busy) return;
+    setIsPicking(true);
+    try {
+      let uri: string | undefined;
+      try {
+        const result = await ImagePicker.launchImageLibraryAsync({
+          mediaTypes: ['images'],
+          allowsEditing: false,
+          quality: 1,
+        });
+        if (result.canceled) return;
+        uri = result.assets[0]?.uri;
+      } catch {
+        Alert.alert('Ошибка выбора изображения', 'Не удалось открыть галерею. Проверьте разрешения приложения.');
+        return;
+      }
+
+      if (!uri) {
+        Alert.alert('Ошибка изображения', 'Не удалось получить фотографию. Выберите другую.');
+        return;
+      }
+      const savedImage = await addImage(marker.id, uri);
+      setImages((current) => current && [...current, savedImage]);
+    } catch (error) {
+      Alert.alert('Ошибка сохранения', error instanceof Error ? error.message : 'Попробуйте ещё раз.');
+    } finally {
+      setIsPicking(false);
+    }
+  }
+
+  async function removeImage(id: number) {
+    if (busy) return;
+    try {
+      await deleteImage(id);
+      setImages((current) => current?.filter((image) => image.id !== id) ?? null);
+    } catch (error) {
+      Alert.alert('Ошибка удаления', error instanceof Error ? error.message : 'Попробуйте ещё раз.');
+    }
+  }
+
+  async function removeMarker() {
+    try {
+      await deleteMarker(marker.id);
+      onBack();
+    } catch (error) {
+      Alert.alert('Ошибка удаления', error instanceof Error ? error.message : 'Попробуйте ещё раз.');
+    }
+  }
+
+  function confirmMarkerDeletion() {
+    Alert.alert('Удалить маркер?', 'Все привязанные к нему фотографии будут удалены из приложения.', [
+      { text: 'Отмена', style: 'cancel' },
+      { text: 'Удалить', style: 'destructive', onPress: removeMarker },
+    ]);
   }
 
   return (
@@ -66,19 +128,24 @@ export default function MarkerScreen() {
         <Text style={styles.title}>Маркер {marker.id}</Text>
         <Text style={styles.text}>Широта: {marker.coordinate.latitude.toFixed(6)}</Text>
         <Text style={styles.text}>Долгота: {marker.coordinate.longitude.toFixed(6)}</Text>
-        <Text style={styles.count}>Изображений: {marker.images.length}</Text>
+        {images && !loadError && <Text style={styles.count}>Изображений: {images.length}</Text>}
       </View>
       <Button
-        title={isPicking ? 'Открываем галерею…' : 'Добавить изображение'}
+        title={isPicking ? 'Добавляем изображение…' : 'Добавить изображение'}
         onPress={pickImage}
-        disabled={isPicking}
+        disabled={busy || !!loadError || images === null}
       />
-      {isPicking && <ActivityIndicator style={styles.loader} color="#2563eb" />}
-      <ImageList
-        images={marker.images}
-        onRemove={(imageId) => removeImage(marker.id, imageId)}
-      />
-      <Button title="Вернуться к карте" onPress={goBack} />
+      {busy && <ActivityIndicator style={styles.loader} color="#2563eb" />}
+      {loadError ? (
+        <View style={styles.listError}>
+          <Text style={styles.text}>{loadError}</Text>
+          <Button title="Повторить загрузку" onPress={() => setLoadAttempt((attempt) => attempt + 1)} />
+        </View>
+      ) : images && (
+        <ImageList images={images} onRemove={removeImage} disabled={busy} />
+      )}
+      <Button title="Удалить маркер" color="#dc2626" onPress={confirmMarkerDeletion} disabled={busy} />
+      <Button title="Вернуться к карте" onPress={onBack} />
     </SafeAreaView>
   );
 }
@@ -90,5 +157,6 @@ const styles = StyleSheet.create({
   text: { fontSize: 16, lineHeight: 24, color: '#4b5563' },
   count: { marginTop: 4, fontSize: 16, fontWeight: 'bold', color: '#2563eb' },
   loader: { marginTop: 12 },
+  listError: { paddingVertical: 16, gap: 8 },
   missing: { flex: 1, padding: 24, justifyContent: 'center', gap: 16, backgroundColor: '#fff' },
 });
