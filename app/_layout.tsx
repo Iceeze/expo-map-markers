@@ -8,7 +8,7 @@ export default function RootLayout() {
       <StatusBar style="dark" />
       <Stack screenOptions={{ headerBackTitle: 'Карта' }}>
         <Stack.Screen name="index" options={{ headerShown: false }} />
-        <Stack.Screen name="marker/[id]" options={{ title: 'Детали маркера' }} />
+        <Stack.Screen name="marker/[id]" options={{ title: 'Детали маркера', headerTransparent: false }} />
         <Stack.Screen name="+not-found" options={{ title: 'Экран не найден' }} />
       </Stack>
     </MarkersProvider>
