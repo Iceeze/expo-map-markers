@@ -7,7 +7,8 @@
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.iceeze.mapandimages"
     },
     "android": {
       "adaptiveIcon": {
@@ -33,7 +34,24 @@
           "microphonePermission": false
         }
       ],
-      "expo-status-bar"
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Разрешите показывать ваше местоположение на карте и уведомлять о метках поблизости.",
+          "locationAlwaysPermission": false,
+          "locationAlwaysAndWhenInUsePermission": false,
+          "locationFullAccuracyPermission": false,
+          "motionUsagePermission": false
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "enableRemoteNotifications": false
+        }
+      ],
+      "expo-status-bar",
+      "expo-sqlite"
     ]
   }
 }
