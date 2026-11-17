@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Button, Platform, StyleSheet, Text, View } from 'react-native';
 import MapView, { Marker } from 'react-native-maps';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -7,12 +7,14 @@ import type { Coordinates, MapMarker } from '../types';
 
 interface MapProps {
   markers: MapMarker[];
+  userLocation: Coordinates | null;
   onAddMarker: (coordinate: Coordinates) => void;
   onOpenMarker: (id: number) => void;
 }
 
-function MapContent({ markers, onAddMarker, onOpenMarker }: MapProps) {
+function MapContent({ markers, userLocation, onAddMarker, onOpenMarker }: MapProps) {
   const insets = useSafeAreaInsets();
+  const map = useRef<MapView>(null);
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const [attempt, setAttempt] = useState(0);
 
@@ -27,10 +29,21 @@ function MapContent({ markers, onAddMarker, onOpenMarker }: MapProps) {
     setAttempt((current) => current + 1);
   }
 
+  function focusLocation() {
+    if (!userLocation) return;
+    map.current?.animateToRegion({
+      latitude: userLocation.latitude,
+      longitude: userLocation.longitude,
+      latitudeDelta: 0.01,
+      longitudeDelta: 0.01,
+    }, 300);
+  }
+
   return (
     <View style={styles.container}>
       <MapView
         key={attempt}
+        ref={map}
         style={StyleSheet.absoluteFill}
         initialRegion={{
           latitude: 56.8389,
@@ -53,9 +66,13 @@ function MapContent({ markers, onAddMarker, onOpenMarker }: MapProps) {
             onPress={() => onOpenMarker(marker.id)}
           />
         ))}
+        {userLocation && (
+          <Marker key="user-location" coordinate={userLocation} title="Вы здесь" pinColor="#2563eb" />
+        )}
       </MapView>
       {status === 'ready' && (
         <View style={[styles.refresh, { bottom: insets.bottom + 24 }]}>
+          <Button title="Моё местоположение" onPress={focusLocation} disabled={!userLocation} />
           <Button title="Обновить карту" onPress={retry} />
         </View>
       )}
