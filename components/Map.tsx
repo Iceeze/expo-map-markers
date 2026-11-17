@@ -46,8 +46,8 @@ function MapContent({ markers, userLocation, onAddMarker, onOpenMarker }: MapPro
         ref={map}
         style={StyleSheet.absoluteFill}
         initialRegion={{
-          latitude: 56.8389,
-          longitude: 60.6057,
+          latitude: 58.0105,
+          longitude: 56.2502,
           latitudeDelta: 0.08,
           longitudeDelta: 0.08,
         }}

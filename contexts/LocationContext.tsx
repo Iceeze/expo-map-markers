@@ -24,7 +24,6 @@ export function LocationProvider({ children }: { children: ReactNode }) {
   const locationPromptAttempt = useRef(-1);
   const notificationPromptAttempt = useRef(-1);
 
-  // On iOS a system permission dialog moves the app to the inactive state.
   const inForeground = appState === 'active' || appState === 'inactive';
 
   useEffect(() => {
